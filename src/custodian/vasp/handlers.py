@@ -1382,19 +1382,22 @@ class LargeSigmaHandler(ErrorHandler):
 
         if incar.get("ISMEAR", 1) >= 0:
             # get entropy terms, ionic step counts, and number of completed ionic steps
-            outcar.read_pattern(
-                {"smearing_entropy": r"entropy T\*S.*= *(\D\d*\.\d*)"},
-                postprocess=float,
-                reverse=False,
-                terminate_on_match=False,
-            )
-            outcar.read_pattern(
-                {"electronic_steps": r"Iteration *(\D\d*\ \d*)"},
-                postprocess=int,
-                reverse=False,
-                terminate_on_match=False,
-            )
-            outcar.read_pattern({"completed_ionic_steps": r"(aborting loop)"}, reverse=False, terminate_on_match=False)
+            try:
+                outcar.read_pattern(
+                    {"smearing_entropy": r"entropy T\*S.*= *(\D\d*\.\d*)"},
+                    postprocess=float,
+                    reverse=False,
+                    terminate_on_match=False,
+                )
+                outcar.read_pattern(
+                    {"electronic_steps": r"Iteration *(\D\d*\ \d*)"},
+                    postprocess=int,
+                    reverse=False,
+                    terminate_on_match=False,
+                )
+                outcar.read_pattern({"completed_ionic_steps": r"(aborting loop)"}, reverse=False, terminate_on_match=False)
+            except Exception:
+                return False
 
             completed_ionic_steps = len(outcar.data.get("completed_ionic_steps"))
             entropies_per_atom = [0.0 for _ in range(completed_ionic_steps)]
@@ -1757,14 +1760,21 @@ class WalltimeHandler(ErrorHandler):
         if self.wall_time:
             run_time = datetime.datetime.now() - self.start_time
             total_secs = run_time.total_seconds()
-            outcar = load_outcar(os.path.join(directory, "OUTCAR"))
+            try:
+                outcar = load_outcar(os.path.join(directory, "OUTCAR"))
+            except Exception:
+                return False
             if not self.electronic_step_stop:
                 # Determine max time per ionic step.
                 outcar.read_pattern({"timings": r"LOOP\+.+real time(.+)"}, postprocess=float)
                 time_per_step = np.max(outcar.data.get("timings")) if outcar.data.get("timings", []) else 0
             else:
                 # Determine max time per electronic step.
-                outcar.read_pattern({"timings": "LOOP:.+real time(.+)"}, postprocess=float)
+                try:
+                    outcar.read_pattern({"timings": "LOOP:.+real time(.+)"}, postprocess=float)
+                except Exception:
+                    return False
+
                 time_per_step = np.max(outcar.data.get("timings")) if outcar.data.get("timings", []) else 0
 
             # If the remaining time is less than average time for 3
